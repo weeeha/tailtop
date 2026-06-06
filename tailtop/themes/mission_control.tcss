@@ -1,5 +1,45 @@
-/* mission_control.tcss — Cockpit's theme (built out later) */
+/* mission_control.tcss — Cockpit's theme: accent borders, ambers, ANSI greens */
 
 CockpitMode {
     background: #0d0d12;
+}
+
+#cockpit-topbar {
+    height: 1;
+    padding: 0 2;
+    color: #f0c674;
+    text-style: bold;
+    border-bottom: solid #2a2410;
+}
+
+#cockpit-grid {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 1fr 1fr;
+    grid-rows: auto;
+    grid-gutter: 1 2;
+    padding: 1 2;
+    height: 1fr;
+    overflow-y: auto;
+}
+
+.devcard {
+    height: 7;
+    border: round #c792ea;
+    border-title-color: #c792ea;
+    border-title-style: bold;
+    padding: 0 1;
+    background: #0d0d12;
+}
+
+.devcard.offline {
+    border: round #3a3a44;
+    border-title-color: #6b6f78;
+}
+
+#cockpit-footer {
+    height: 1;
+    padding: 0 2;
+    color: #6b6f78;
+    border-top: solid #2a2410;
 }

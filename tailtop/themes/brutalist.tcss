@@ -1,5 +1,49 @@
-/* brutalist.tcss — Observatory's theme (built out later) */
+/* brutalist.tcss — Observatory's theme: heavy borders, big numbers, restrained */
 
 ObservatoryMode {
     background: #0d0d12;
+}
+
+#obs-header {
+    height: 1;
+    padding: 0 2;
+    color: #c792ea;
+    text-style: bold;
+}
+
+/* heavy border = 2 rows; +1 content line ⇒ height 3, no vertical padding */
+#obs-core {
+    height: 3;
+    padding: 0 2;
+    border: heavy #8bb6ff;
+    margin: 0 2 1 2;
+}
+
+#obs-cols {
+    height: 1fr;
+    padding: 0 2;
+}
+
+#obs-direct {
+    width: 1fr;
+    height: 1fr;
+    border: heavy #2f5a3a;
+    padding: 1 2;
+    margin: 0 1 0 0;
+}
+
+#obs-relayed {
+    width: 1fr;
+    height: 1fr;
+    border: heavy #5a4a1a;
+    padding: 1 2;
+    margin: 0 0 0 1;
+}
+
+/* 2 content lines (rx, tx) + heavy border ⇒ height 4, no vertical padding */
+#obs-traffic {
+    height: 4;
+    padding: 0 2;
+    border: heavy #2a2435;
+    margin: 1 2 0 2;
 }
