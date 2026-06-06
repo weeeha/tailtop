@@ -1,0 +1,5 @@
+/* brutalist.tcss — Observatory's theme (built out later) */
+
+ObservatoryMode {
+    background: #0d0d12;
+}

@@ -1,0 +1,5 @@
+/* mission_control.tcss — Cockpit's theme (built out later) */
+
+CockpitMode {
+    background: #0d0d12;
+}

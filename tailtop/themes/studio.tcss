@@ -1,0 +1,9 @@
+/* studio.tcss — Comfort's theme: soft, clean, spacious */
+
+ComfortMode #comfort-header {
+    color: #8bb6ff;
+}
+
+ComfortMode #detail-pane {
+    background: #101017;
+}

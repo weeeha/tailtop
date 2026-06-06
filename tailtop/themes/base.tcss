@@ -1,0 +1,71 @@
+/* base.tcss — structural layout shared by all modes */
+
+Screen {
+    background: #0d0d12;
+    color: #cfd3da;
+}
+
+#modes {
+    height: 1fr;
+}
+
+ModeView {
+    height: 1fr;
+    width: 1fr;
+}
+
+StatusBar {
+    dock: bottom;
+    height: 1;
+    background: #15151c;
+    color: #cfd3da;
+    padding: 0 1;
+}
+
+/* ---- Comfort layout ---- */
+
+#comfort-header {
+    height: 1;
+    padding: 0 1;
+    color: #8a8f99;
+    text-style: bold;
+    border-bottom: solid #23232c;
+}
+
+#comfort-body {
+    height: 1fr;
+}
+
+#device-list {
+    width: 42%;
+    border-right: solid #23232c;
+    background: #0d0d12;
+    padding: 0;
+}
+
+#device-list > ListItem {
+    padding: 0 1;
+    background: #0d0d12;
+}
+
+#device-list > ListItem.--highlight {
+    background: #1d2333;
+}
+
+#device-list:focus > ListItem.--highlight {
+    background: #243049;
+}
+
+#detail-pane {
+    width: 1fr;
+    padding: 1 2;
+}
+
+/* placeholders for not-yet-built modes */
+#cockpit-placeholder, #observatory-placeholder {
+    width: 1fr;
+    height: 1fr;
+    content-align: center middle;
+    text-align: center;
+    color: #6b6f78;
+}
