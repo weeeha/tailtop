@@ -35,6 +35,7 @@ from tailtop.modes.comfort import ComfortMode
 from tailtop.modes.observatory import ObservatoryMode
 from tailtop.screens import ConfirmScreen, InputScreen, ResultScreen
 from tailtop.state import RateHistory
+from tailtop.widgets.splash import SplashScreen
 from tailtop.widgets.status_bar import StatusBar
 
 _THEMES = Path(__file__).parent / "themes"
@@ -71,12 +72,19 @@ class TailtopApp(App):
     error: reactive[str] = reactive("")
     selected_peer_id: reactive[str] = reactive("")
 
-    def __init__(self, client: TailscaleClient | None = None, auto_poll: bool = True) -> None:
+    def __init__(
+        self,
+        client: TailscaleClient | None = None,
+        auto_poll: bool = True,
+        splash: bool | None = None,
+    ) -> None:
         super().__init__()
         self.client = client or TailscaleClient()
         self.rates = RateHistory()
         self.auto_poll = auto_poll
         self.poller = Poller(self.client, self._on_status, self._on_error, interval=2.0)
+        self._splash_enabled = auto_poll if splash is None else splash
+        self._splash: SplashScreen | None = None
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="comfort", id="modes"):
@@ -87,7 +95,13 @@ class TailtopApp(App):
 
     def on_mount(self) -> None:
         self._refresh_status_bar()
+        if self._splash_enabled:
+            self._splash = SplashScreen()
+            self.push_screen(self._splash)
+            self.set_timer(3.5, self._dismiss_splash)
         if not self.client.available:
+            if self._splash is not None:
+                self._splash.set_message("tailscale CLI not found")
             self.notify(
                 "tailscale CLI not found on PATH — install it or start tailscaled.",
                 title="tailtop",
@@ -104,7 +118,17 @@ class TailtopApp(App):
         for p in (status.self_peer, *status.peers):
             self.rates.update(p.id, p.rx_bytes, p.tx_bytes, now)
         self.error = ""
+        # Dismiss before triggering watch_status so the mode widgets on the
+        # base screen are queryable (the splash hides them otherwise).
+        self._dismiss_splash()
         self.status = status  # triggers watch_status
+
+    def _dismiss_splash(self) -> None:
+        splash = self._splash
+        if splash is None:
+            return
+        self._splash = None
+        splash.safe_dismiss()
 
     def _on_error(self, exc: Exception) -> None:
         self.error = self._friendly_error(exc)
