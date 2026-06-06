@@ -9,6 +9,8 @@ from textual.widgets import Static
 from tailtop.data.models import ConnType, Peer
 from tailtop.state import RateHistory, human_rate, sparkline
 
+_SPARK_MAX = 32  # matches RateHistory.WIDTH; past this we're drawing empty dots
+
 _CONN_COLOR = {
     ConnType.DIRECT: "#7be39b",
     ConnType.DERP: "#f0c674",
@@ -37,12 +39,21 @@ class DeviceCard(Static):
 
         path_line = Text(peer.relay_label, style=color)
 
+        rx_label = f"  {human_rate(rates.current_rx(peer.id)):>10}"
+        tx_label = f"  {human_rate(rates.current_tx(peer.id)):>10}"
+
+        # Stretch the sparkline to fill the card. content_size is post-border,
+        # post-padding; it's 0 before the first layout, so fall back to a value
+        # that looks fine in a 3-column grid until the real size arrives.
+        avail = self.content_size.width or 48
+        spark_w = max(8, min(_SPARK_MAX, avail - len(rx_label) - 1))
+
         rx = Text()
-        rx.append(sparkline(rates.rx_series(peer.id), width=8), style="#f0c674")
-        rx.append(f"  {human_rate(rates.current_rx(peer.id))}", style="dim")
+        rx.append(sparkline(rates.rx_series(peer.id), width=spark_w), style="#f0c674")
+        rx.append(rx_label, style="dim")
 
         tx = Text()
-        tx.append(sparkline(rates.tx_series(peer.id), width=8), style="#7be39b")
-        tx.append(f"  {human_rate(rates.current_tx(peer.id))}", style="dim")
+        tx.append(sparkline(rates.tx_series(peer.id), width=spark_w), style="#7be39b")
+        tx.append(tx_label, style="dim")
 
         self.update(Group(status_line, path_line, Text(""), rx, tx))

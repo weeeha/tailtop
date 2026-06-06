@@ -8,7 +8,10 @@ and report back via modal screens or notifications.
 
 from __future__ import annotations
 
+import argparse
+import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -307,8 +310,22 @@ class TailtopApp(App):
         await self.poller.stop()
 
 
-def main() -> None:
-    TailtopApp().run()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="tailtop", description="htop for your tailnet")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        default=os.environ.get("TAILTOP_DEMO") in ("1", "true", "yes"),
+        help="Run against a synthetic tech-company tailnet (no tailscaled needed).",
+    )
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+
+    client = None
+    if args.demo:
+        from tailtop.data.demo import DemoClient
+
+        client = DemoClient()
+    TailtopApp(client=client).run()
 
 
 if __name__ == "__main__":
