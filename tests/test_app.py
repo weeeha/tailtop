@@ -43,6 +43,24 @@ async def test_tab_cycles_modes(status: Status) -> None:
         assert app.active_mode == "comfort"
 
 
+async def test_disconnected_empty_state_does_not_crash() -> None:
+    empty = Status(
+        version="1.0",
+        backend_state="Stopped",
+        tailscale_ips=[],
+        magic_dns_suffix="",
+        user_display="",
+        self_peer=Status.from_json({"Self": {}}).self_peer,
+        peers=[],
+    )
+    app = TailtopApp(auto_poll=False)
+    async with app.run_test() as pilot:
+        app._on_status(empty)
+        await pilot.pause()
+        assert app.query_one(DeviceList).__len__() == 0
+        assert app.selected_peer() is None
+
+
 async def test_navigation_updates_selection(status: Status) -> None:
     app = TailtopApp(auto_poll=False)
     async with app.run_test() as pilot:

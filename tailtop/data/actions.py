@@ -80,5 +80,9 @@ def serve(args: list[str]) -> Action:
     return Action("serve", "Serve", ["serve", *args], mutating=True)
 
 
+def serve_status() -> Action:
+    return Action("serve", "Serve status", ["serve", "status"], mutating=False)
+
+
 def lock_status() -> Action:
     return Action("lock", "Tailnet lock status", ["lock", "status"], mutating=False)

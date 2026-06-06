@@ -16,6 +16,20 @@ the Tailscale side, needs no root, and runs entirely in your terminal.
 | **Cockpit** | operate | Live cards + sparklines | Mission Control |
 | **Observatory** | observe | Network topology | Brutalist |
 
+## Keys
+
+| Key | Action |
+|-----|--------|
+| `Tab` | cycle modes (Comfort → Cockpit → Observatory) |
+| `j` / `k` / `↑` / `↓` | navigate devices |
+| `⌘P` / `Ctrl+P` | command palette (all verbs for the selected device) |
+| `p` | ping · `c` copy IP · `w` whois · `n` netcheck |
+| `e` | toggle exit node · `f` send file · `s` SSH |
+| `r` | refresh · `?` help · `q` quit |
+
+Mutating actions (exit node, funnel, send) confirm first. SSH suspends the
+TUI, hands the terminal to `tailscale ssh`, and resumes on exit.
+
 ## Requirements
 
 - The `tailscale` CLI on your `PATH` (the daemon must be running).

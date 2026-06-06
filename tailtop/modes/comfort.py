@@ -33,9 +33,15 @@ class ComfortMode(ModeView):
     def update_data(self, status: Status, rates: RateHistory) -> None:
         peers = status.sorted_peers()
         header = self.query_one("#comfort-header", Static)
-        header.update(f"Devices · {status.online_count}/{status.total_count} online")
+        if not status.connected:
+            header.update(f"Devices · {status.backend_state}")
+        else:
+            header.update(f"Devices · {status.online_count}/{status.total_count} online")
         self.query_one(DeviceList).populate(peers, keep_id=self._selected_id)
-        if peers and self._selected_id is None:
+        if not peers:
+            self.query_one(DetailPane).show_empty("No devices on this tailnet")
+            return
+        if self._selected_id is None:
             self._select(peers[0])
 
     def on_device_list_peer_highlighted(self, event: DeviceList.PeerHighlighted) -> None:
@@ -45,3 +51,6 @@ class ComfortMode(ModeView):
     def _select(self, peer: Peer) -> None:
         self._selected_id = peer.id
         self.query_one(DetailPane).update_peer(peer)
+        # propagate selection so verbs (ping, ssh, …) target this peer
+        if hasattr(self.app, "selected_peer_id"):
+            self.app.selected_peer_id = peer.id
