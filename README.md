@@ -32,14 +32,17 @@ TUI, hands the terminal to `tailscale ssh`, and resumes on exit.
 
 ## Requirements
 
-- The `tailscale` CLI on your `PATH` (the daemon must be running).
+- The `tailscale` CLI on your `PATH` (the daemon must be running). Not needed with `--demo`.
 - Python ≥ 3.13.
 
 ## Run
 
 ```sh
 uv run tailtop
+uv run tailtop --demo   # synthetic tailnet, no tailscaled needed (or TAILTOP_DEMO=1)
 ```
+
+A short boot splash shows while the first status call is in flight; any key dismisses it.
 
 ## Develop
 
@@ -51,7 +54,7 @@ uv run pytest
 
 ## Design
 
-See [the design spec](../docs/superpowers/specs/2026-06-05-tailtop-tui-design.md).
+The design spec (`2026-06-05-tailtop-tui-design.md`) lives in the parent monorepo, not in this repository.
 
 Visual inspiration from [Bagels](https://github.com/EnhancedJax/Bagels); no
 code is copied (Bagels is GPL-3, tailtop is BSD-3).
