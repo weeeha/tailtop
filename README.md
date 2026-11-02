@@ -6,6 +6,10 @@
 
 **Built.** A Python 3.13 terminal UI on Textual that installs nothing on the Tailscale side and needs no root, with a `--demo` mode that runs a synthetic tailnet. 11 commits on 4 days, Jun 6 to Oct 20, 2026.
 
+**Decision.** The `--demo` flag swaps in a synthetic client with the same surface as the real one, so screenshots and design review do not need a running `tailscaled`.
+
+![Cockpit mode: live device cards with RX and TX sparklines](docs/screenshots/cockpit.png)
+
 A terminal UI for Tailscale — *htop for your tailnet.*
 
 `tailtop` is a second front-end to the `tailscaled` daemon already running on
@@ -21,6 +25,12 @@ the Tailscale side, needs no root, and runs entirely in your terminal.
 | **Comfort** | manage | List (GUI parity) | Studio |
 | **Cockpit** | operate | Live cards + sparklines | Mission Control |
 | **Observatory** | observe | Network topology | Brutalist |
+
+| Comfort | Observatory |
+|---|---|
+| ![Comfort mode: device list with a detail panel](docs/screenshots/comfort.png) | ![Observatory mode: direct and DERP-relayed peers](docs/screenshots/observatory.png) |
+
+Screenshots are from `tailtop --demo`, which runs a synthetic tailnet.
 
 ## Keys
 
