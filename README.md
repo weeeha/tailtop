@@ -1,5 +1,11 @@
 # tailtop
 
+**Problem.** Managing a tailnet means the official GUI or one-off `tailscale` commands such as ping, whois and netcheck, and neither gives a live overview of every device inside a terminal.
+
+**Idea.** htop for your tailnet: a second front-end to the `tailscaled` daemon that is already running. Three modes, one per intent (manage, operate, observe), each with its own view and theme.
+
+**Built.** A Python 3.13 terminal UI on Textual that installs nothing on the Tailscale side and needs no root, with a `--demo` mode that runs a synthetic tailnet. 11 commits on 4 days, Jun 6 to Oct 20, 2026.
+
 A terminal UI for Tailscale — *htop for your tailnet.*
 
 `tailtop` is a second front-end to the `tailscaled` daemon already running on
