@@ -13,3 +13,4 @@ dist/
 # rendered screenshots / scratch
 *.svg
 *.png
+!docs/screenshots/*.png
