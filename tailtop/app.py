@@ -238,8 +238,8 @@ class TailtopApp(App):
 
     def action_help(self) -> None:
         self.notify(
-            "Tab modes · j/k navigate · p ping · c copy · w whois · n netcheck · "
-            "e exit-node · f send · s ssh · ⌘P palette · q quit",
+            "Tab or 1-4 modes · j/k navigate · p ping · c copy · w whois · n netcheck · "
+            "e exit-node · f send · s ssh · Fleet: R restart · B reboot · ⌘P palette · q quit",
             title="tailtop",
             timeout=8,
         )
