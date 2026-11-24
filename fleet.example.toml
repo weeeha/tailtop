@@ -1,0 +1,19 @@
+# Example Fleet mode config. Copy to ~/.config/tailtop/fleet.toml and edit.
+# Everything is optional: with no file, every Linux device on the tailnet is a
+# board and probes run as Tailscale's default SSH user.
+
+# [defaults]
+# user = "nickv2026"     # SSH user for every board unless a board overrides it
+# interval = 30          # seconds between probes while Fleet is open (min 5)
+# only_listed = false    # true: show only boards that have a [boards.<name>] table
+
+# [boards.plantdashboard]
+# service = "tailprobe"  # systemd unit that means "this board is doing its job"
+# label = "plant monitor"
+
+# [boards.fastclock]
+# user = "pi"            # per-board SSH user
+# service = "kiosk"
+
+# [boards.build-server]
+# ignore = true          # a Linux machine that is not a board
