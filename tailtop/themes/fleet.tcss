@@ -1,0 +1,56 @@
+/* fleet.tcss: Fleet mode, a dense netwatch-style grid */
+
+#fleet-topbar {
+    height: 1;
+    padding: 0 1;
+    color: #7fd88f;
+    text-style: bold;
+}
+
+#fleet-summary {
+    height: 4;
+}
+
+.fleet-box {
+    width: 1fr;
+    height: 4;
+    border: round #2c3a30;
+    border-title-color: #7fd88f;
+    padding: 0 1;
+}
+
+#fleet-body {
+    height: 1fr;
+}
+
+#fleet-table {
+    width: 2fr;
+    height: 1fr;
+    border: round #2c3a30;
+    border-title-color: #7fd88f;
+    background: #0d0d12;
+}
+
+#fleet-table > .datatable--header {
+    color: #8a8f99;
+    background: #0d0d12;
+}
+
+#fleet-table > .datatable--cursor {
+    background: #1d2a22;
+}
+
+#fleet-detail {
+    width: 1fr;
+    min-width: 30;
+    height: 1fr;
+    border: round #2c3a30;
+    border-title-color: #7fd88f;
+    padding: 0 1;
+}
+
+#fleet-footer {
+    height: 1;
+    padding: 0 1;
+    color: #8a8f99;
+}

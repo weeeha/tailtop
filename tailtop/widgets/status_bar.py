@@ -11,6 +11,7 @@ _MODE_LABEL = {
     "comfort": ("COMFORT", "#8bb6ff"),
     "cockpit": ("COCKPIT", "#f0c674"),
     "observatory": ("OBSERVATORY", "#c792ea"),
+    "fleet": ("FLEET", "#7fd88f"),
 }
 
 

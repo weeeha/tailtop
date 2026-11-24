@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 from textual import work
@@ -31,10 +32,14 @@ from tailtop.data.client import (
     TailscaleNotFound,
     TailscaleTimeout,
 )
+from tailtop.data.fleet import Board
+from tailtop.data.fleet_config import DEFAULT_PATH, FleetConfig, load_fleet_config
+from tailtop.data.fleet_poller import FleetPoller, ProbeRunner, ssh_probe_runner
 from tailtop.data.models import Peer, Status
 from tailtop.data.poller import Poller
 from tailtop.modes.cockpit import CockpitMode
 from tailtop.modes.comfort import ComfortMode
+from tailtop.modes.fleet import FleetMode
 from tailtop.modes.observatory import ObservatoryMode
 from tailtop.screens import ConfirmScreen, InputScreen, ResultScreen
 from tailtop.state import RateHistory
@@ -50,12 +55,17 @@ class TailtopApp(App):
         _THEMES / "studio.tcss",
         _THEMES / "mission_control.tcss",
         _THEMES / "brutalist.tcss",
+        _THEMES / "fleet.tcss",
     ]
 
     COMMANDS = App.COMMANDS | {TailtopCommands}
 
     BINDINGS = [
         Binding("tab", "cycle_mode", "Mode", priority=True),
+        Binding("1", "show_mode('comfort')", "Comfort", show=False),
+        Binding("2", "show_mode('cockpit')", "Cockpit", show=False),
+        Binding("3", "show_mode('observatory')", "Observatory", show=False),
+        Binding("4", "show_mode('fleet')", "Fleet", show=False),
         Binding("p", "ping", "Ping"),
         Binding("c", "copy_ip", "Copy IP"),
         Binding("w", "whois", "Whois"),
@@ -68,7 +78,7 @@ class TailtopApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    MODE_ORDER = ["comfort", "cockpit", "observatory"]
+    MODE_ORDER = ["comfort", "cockpit", "observatory", "fleet"]
 
     status: reactive[Status | None] = reactive(None)
     active_mode: reactive[str] = reactive("comfort")
@@ -80,6 +90,8 @@ class TailtopApp(App):
         client: TailscaleClient | None = None,
         auto_poll: bool = True,
         splash: bool | None = None,
+        fleet_runner: ProbeRunner | None = None,
+        fleet_config: FleetConfig | None = None,
     ) -> None:
         super().__init__()
         self.client = client or TailscaleClient()
@@ -88,12 +100,23 @@ class TailtopApp(App):
         self.poller = Poller(self.client, self._on_status, self._on_error, interval=2.0)
         self._splash_enabled = auto_poll if splash is None else splash
         self._splash: SplashScreen | None = None
+        self._fleet_errors: list[str] = []
+        if fleet_config is None:
+            fleet_config, self._fleet_errors = load_fleet_config()
+        self.fleet_config = fleet_config
+        self.fleet = FleetPoller(
+            fleet_runner or ssh_probe_runner(getattr(self.client, "_binary", "tailscale")),
+            lambda: self.status,
+            fleet_config,
+            self._on_fleet,
+        )
 
     def compose(self) -> ComposeResult:
         with ContentSwitcher(initial="comfort", id="modes"):
             yield ComfortMode(id="comfort")
             yield CockpitMode(id="cockpit")
             yield ObservatoryMode(id="observatory")
+            yield FleetMode(DEFAULT_PATH, id="fleet")
         yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
@@ -111,6 +134,8 @@ class TailtopApp(App):
                 severity="error",
                 timeout=10,
             )
+        for err in self._fleet_errors:
+            self.notify(err, title="fleet.toml", severity="error", timeout=10)
         if self.auto_poll:
             self.poller.start()
 
@@ -125,6 +150,8 @@ class TailtopApp(App):
         # base screen are queryable (the splash hides them otherwise).
         self._dismiss_splash()
         self.status = status  # triggers watch_status
+        if self.active_mode == "fleet" and not self.fleet.boards:
+            self.fleet.probe_now()  # first status after entering Fleet: probe at once
 
     def _dismiss_splash(self) -> None:
         splash = self._splash
@@ -176,7 +203,17 @@ class TailtopApp(App):
 
     def action_cycle_mode(self) -> None:
         idx = self.MODE_ORDER.index(self.active_mode)
-        self.active_mode = self.MODE_ORDER[(idx + 1) % len(self.MODE_ORDER)]
+        self.action_show_mode(self.MODE_ORDER[(idx + 1) % len(self.MODE_ORDER)])
+
+    def action_show_mode(self, name: str) -> None:
+        if name not in self.MODE_ORDER:
+            return
+        previous = self.active_mode
+        self.active_mode = name
+        if name == "fleet" and previous != "fleet":
+            self.fleet.start()
+        elif previous == "fleet" and name != "fleet":
+            self.run_worker(self.fleet.stop(), exclusive=False)
         self.query_one(ContentSwitcher).current = self.active_mode
         mode = self._mode_widget()
         self.poller.set_interval(getattr(mode, "cadence", 2.0))
@@ -186,6 +223,15 @@ class TailtopApp(App):
 
     def action_refresh(self) -> None:
         self.poller.refresh_now()
+        if self.active_mode == "fleet":
+            self.fleet.probe_now()
+
+    def _on_fleet(self, boards: list[Board]) -> None:
+        try:
+            mode = self.query_one(FleetMode)
+        except Exception:  # noqa: BLE001 — not mounted yet
+            return
+        mode.update_fleet(boards, self.fleet.history, datetime.now(UTC))
 
     def action_help(self) -> None:
         self.notify(
@@ -332,6 +378,7 @@ class TailtopApp(App):
 
     async def on_unmount(self) -> None:
         await self.poller.stop()
+        await self.fleet.stop()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -345,11 +392,15 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
     client = None
+    fleet_runner = None
+    fleet_config = None
     if args.demo:
-        from tailtop.data.demo import DemoClient
+        from tailtop.data.demo import DemoClient, demo_fleet_config, demo_probe_runner
 
         client = DemoClient()
-    TailtopApp(client=client).run()
+        fleet_runner = demo_probe_runner()
+        fleet_config = demo_fleet_config()
+    TailtopApp(client=client, fleet_runner=fleet_runner, fleet_config=fleet_config).run()
 
 
 if __name__ == "__main__":
