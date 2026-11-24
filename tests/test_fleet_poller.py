@@ -235,3 +235,24 @@ async def test_demo_fleet_covers_every_state() -> None:
     verdicts = {verdict(b, now=now) for b in updates[-1]}
     assert {Verdict.DOWN, Verdict.UNREACHABLE, Verdict.USELESS, Verdict.WARN, Verdict.OK} <= verdicts
     assert updates[-1][0].name == "eink-bed"
+
+
+async def test_good_probe_right_after_reboot_keeps_rebooting_mark() -> None:
+    r = Recorder()
+    poller, _, _ = make_poller(r, status(peer("plant")))
+    await poller.cycle()
+    poller.mark_rebooting("plant")
+    await poller.cycle()  # board still answers for a moment before it goes down
+    r.fail["plant"] = "timeout after 10s"
+    await poller.cycle()
+    assert verdict(poller.boards["plant"], now=NOW) is Verdict.REBOOTING
+
+
+def test_fast_cadence_only_inside_reboot_window() -> None:
+    poller, _, _ = make_poller(Recorder(), status(peer("plant")))
+    poller.boards["plant"] = Board("plant", peer("plant"), FleetConfig().board("plant"))
+    assert poller.next_wait() == 30.0
+    poller.boards["plant"].rebooting_since = NOW - timedelta(seconds=10)
+    assert poller.next_wait() == 15.0
+    poller.boards["plant"].rebooting_since = NOW - timedelta(seconds=400)
+    assert poller.next_wait() == 30.0

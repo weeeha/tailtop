@@ -32,7 +32,7 @@ from tailtop.data.client import (
     TailscaleNotFound,
     TailscaleTimeout,
 )
-from tailtop.data.fleet import Board
+from tailtop.data.fleet import Board, fix_command
 from tailtop.data.fleet_config import DEFAULT_PATH, FleetConfig, load_fleet_config
 from tailtop.data.fleet_poller import FleetPoller, ProbeRunner, ssh_probe_runner
 from tailtop.data.models import Peer, Status
@@ -41,6 +41,7 @@ from tailtop.modes.cockpit import CockpitMode
 from tailtop.modes.comfort import ComfortMode
 from tailtop.modes.fleet import FleetMode
 from tailtop.modes.observatory import ObservatoryMode
+from tailtop.widgets.fleet_table import FleetTable
 from tailtop.screens import ConfirmScreen, InputScreen, ResultScreen
 from tailtop.state import RateHistory
 from tailtop.widgets.splash import SplashScreen
@@ -105,7 +106,7 @@ class TailtopApp(App):
             fleet_config, self._fleet_errors = load_fleet_config()
         self.fleet_config = fleet_config
         self.fleet = FleetPoller(
-            fleet_runner or ssh_probe_runner(getattr(self.client, "_binary", "tailscale")),
+            fleet_runner or ssh_probe_runner(self._binary()),
             lambda: self.status,
             fleet_config,
             self._on_fleet,
@@ -215,6 +216,8 @@ class TailtopApp(App):
         elif previous == "fleet" and name != "fleet":
             self.run_worker(self.fleet.stop(), exclusive=False)
         self.query_one(ContentSwitcher).current = self.active_mode
+        if name == "fleet":
+            self.query_one(FleetTable).focus()
         mode = self._mode_widget()
         self.poller.set_interval(getattr(mode, "cadence", 2.0))
         if self.status is not None:
@@ -319,17 +322,67 @@ class TailtopApp(App):
 
     @work
     async def action_ssh(self) -> None:
-        peer = self.selected_peer()
-        if peer is None:
-            self.notify("No device selected", severity="warning")
-            return
-        target = peer.magic_dns or peer.ipv4
+        if self.active_mode == "fleet":
+            board = self.query_one(FleetMode).selected_board()
+            if board is None:
+                self.notify("No board selected", severity="warning")
+                return
+            user = self.fleet_config.user_for(board.name)
+            target = f"{user}@{board.name}" if user else board.name
+        else:
+            peer = self.selected_peer()
+            if peer is None:
+                self.notify("No device selected", severity="warning")
+                return
+            target = peer.magic_dns or peer.ipv4
+        self._handover([self._binary(), "ssh", target])
+
+    # ---- Fleet fixes -------------------------------------------------------
+
+    def _binary(self) -> str:
+        return getattr(self.client, "_binary", "tailscale")
+
+    def _handover(self, argv: list[str]) -> None:
+        """Give the terminal to ``argv`` (e.g. a sudo password prompt), then resume."""
         with self.suspend():
             try:
-                subprocess.run([self.client._binary, "ssh", target], check=False)  # noqa: S603
+                subprocess.run(argv, check=False)  # noqa: S603
             except FileNotFoundError:
                 pass
         self.refresh()
+
+    @work
+    async def action_fleet_restart(self) -> None:
+        await self._fleet_fix("restart")
+
+    @work
+    async def action_fleet_reboot(self) -> None:
+        await self._fleet_fix("reboot")
+
+    async def _fleet_fix(self, kind: str) -> None:
+        board = self.query_one(FleetMode).selected_board()
+        if board is None:
+            self.notify("No board selected", severity="warning")
+            return
+        if not board.peer.online:
+            self.notify(f"{board.name} is offline", severity="warning")
+            return
+        if kind == "restart" and not board.config.service:
+            self.notify(f"{board.name}: no service set in fleet.toml", severity="warning")
+            return
+        argv = fix_command(self._binary(), board, self.fleet_config.user_for(board.name), kind)
+        question = (
+            f"Run on {board.name}?\n\n{' '.join(argv)}\n\n"
+            f"You'll type the sudo password on {board.name}."
+        )
+        label = "Restart service" if kind == "restart" else "Reboot"
+        if not await self.push_screen_wait(ConfirmScreen(question, confirm_label=label)):
+            return
+        self._handover(argv)
+        if kind == "restart":
+            self.fleet.probe_now(board.name)
+        else:
+            self.fleet.mark_rebooting(board.name)
 
     # ---- verb runners ------------------------------------------------------
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Literal
 
 from tailtop.data.fleet_config import BoardConfig, FleetConfig
 from tailtop.data.models import Peer, Status
@@ -218,3 +219,14 @@ def select_boards(status: Status, config: FleetConfig) -> list[tuple[Peer, Board
             continue
         out.append((peer, cfg))
     return out
+
+
+def fix_command(
+    binary: str, board: Board, user: str | None, kind: Literal["restart", "reboot"]
+) -> list[str]:
+    """The exact argv handed to the terminal for a fix (spec 5.6)."""
+    target = f"{user}@{board.name}" if user else board.name
+    base = [binary, "ssh", "-t", target, "sudo", "systemctl"]
+    if kind == "restart":
+        return [*base, "restart", board.config.service or ""]
+    return [*base, "reboot"]

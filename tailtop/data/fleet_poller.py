@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 
 from tailtop.data.fleet import (
     PROBE_SCRIPT,
+    REBOOT_WINDOW,
     Board,
     BoardHealth,
     parse_probe,
@@ -182,8 +183,10 @@ class FleetPoller:
                     b.health = _failed(exc.message, now)
                 except Exception as exc:  # noqa: BLE001 — one board must not stop the fleet
                     b.health = _failed(str(exc) or type(exc).__name__, now)
+            # The reboot mark is never cleared by a good probe: a board can still
+            # answer for a moment after `systemctl reboot` returns. It expires
+            # with REBOOT_WINDOW instead.
             if b.health.error is None:
-                b.rebooting_since = None
                 self.history.record(b.name, b.health.temp_c, b.health.load1)
 
         await asyncio.gather(*(probe(b) for b in boards.values() if b.peer.online))
@@ -195,11 +198,19 @@ class FleetPoller:
                 b.state_since = now
         self.on_update(rank_boards(list(boards.values()), now=now))
 
+    def next_wait(self) -> float:
+        """Seconds to the next cycle: faster while a board is inside its reboot window."""
+        now = self.clock()
+        rebooting = any(
+            b.rebooting_since and now - b.rebooting_since < REBOOT_WINDOW
+            for b in self.boards.values()
+        )
+        return min(self.interval, REBOOT_PROBE_INTERVAL) if rebooting else self.interval
+
     async def _loop(self) -> None:
         while True:
             await self.cycle()
-            rebooting = any(b.rebooting_since for b in self.boards.values())
-            wait = min(self.interval, REBOOT_PROBE_INTERVAL) if rebooting else self.interval
+            wait = self.next_wait()
             self._wake.clear()
             try:
                 await asyncio.wait_for(self._wake.wait(), timeout=wait)

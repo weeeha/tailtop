@@ -7,6 +7,7 @@ from pathlib import Path
 
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import DataTable, Static
 
@@ -31,6 +32,11 @@ SUMMARY = (
 
 class FleetMode(ModeView):
     cadence = 5.0
+
+    BINDINGS = [
+        Binding("R", "app.fleet_restart", "Restart service"),
+        Binding("B", "app.fleet_reboot", "Reboot"),
+    ]
 
     def __init__(self, config_path: Path = DEFAULT_PATH, **kwargs) -> None:
         super().__init__(**kwargs)

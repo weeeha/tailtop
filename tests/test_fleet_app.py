@@ -100,3 +100,123 @@ async def test_cursor_kept_across_updates() -> None:
         await app.fleet.cycle()
         await pilot.pause()
         assert app.query_one(FleetMode).selected_board().name == "plant-monitor"
+
+
+# ---- fixes (Task 7) --------------------------------------------------------
+
+from tailtop.data.fleet import Verdict, fix_command, verdict  # noqa: E402
+from tailtop.data.fleet_poller import ProbeError  # noqa: E402
+from tailtop.screens import ConfirmScreen  # noqa: E402
+
+
+async def fleet_app_with_handover(pilot_app: TailtopApp, pilot, board: str) -> list[list[str]]:
+    calls: list[list[str]] = []
+    pilot_app._handover = lambda argv: calls.append(list(argv))
+    await load(pilot_app, pilot)
+    await pilot.press("4")
+    await pilot.pause()
+    pilot_app.query_one(FleetTable).select_board(board)
+    await pilot.pause()
+    return calls
+
+
+async def test_restart_without_service_warns_no_confirm() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "clock-hall")
+        await pilot.press("R")
+        await pilot.pause()
+        assert calls == []
+        assert not isinstance(app.screen, ConfirmScreen)
+
+
+async def test_reboot_offline_warns() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "eink-bed")
+        await pilot.press("B")
+        await pilot.pause()
+        assert calls == []
+        assert not isinstance(app.screen, ConfirmScreen)
+
+
+async def test_restart_confirm_shows_board_and_command() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        await fleet_app_with_handover(app, pilot, "plant-monitor")
+        await pilot.press("R")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmScreen)
+        q = app.screen._question
+        assert "plant-monitor" in q and "sudo systemctl restart plantd" in q
+
+
+async def test_restart_yes_hands_over_exact_argv() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "plant-monitor")
+        await pilot.press("R")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert calls == [
+            ["tailscale", "ssh", "-t", "demo@plant-monitor", "sudo", "systemctl", "restart", "plantd"]
+        ]
+
+
+async def test_restart_no_runs_nothing() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "plant-monitor")
+        await pilot.press("R")
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        assert calls == []
+
+
+async def test_reboot_yes_marks_rebooting() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "clock-desk")
+        await pilot.press("B")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        assert calls == [["tailscale", "ssh", "-t", "demo@clock-desk", "sudo", "systemctl", "reboot"]]
+        real = app.fleet.runner
+
+        async def down_for_desk(host, user, service):
+            if host == "clock-desk":
+                raise ProbeError("timeout after 10s")
+            return await real(host, user, service)
+
+        app.fleet.runner = down_for_desk
+        await app.fleet.cycle()
+        from datetime import UTC, datetime
+
+        assert verdict(app.fleet.boards["clock-desk"], now=datetime.now(UTC)) is Verdict.REBOOTING
+
+
+async def test_ssh_in_fleet_uses_board_user() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        calls = await fleet_app_with_handover(app, pilot, "plant-monitor")
+        await pilot.press("s")
+        await pilot.pause()
+        assert calls[-1] == ["tailscale", "ssh", "demo@plant-monitor"]
+
+
+def test_fix_command_exact() -> None:
+    from tailtop.data.fleet import Board
+    from tailtop.data.fleet_config import BoardConfig
+    from tailtop.data.models import Peer
+
+    b = Board("fastclock", Peer.from_json({"ID": "1", "HostName": "fastclock"}),
+              BoardConfig("fastclock", service="kiosk"))
+    assert fix_command("tailscale", b, "nickv2026", "reboot") == [
+        "tailscale", "ssh", "-t", "nickv2026@fastclock", "sudo", "systemctl", "reboot"
+    ]
+    assert fix_command("tailscale", b, None, "restart") == [
+        "tailscale", "ssh", "-t", "fastclock", "sudo", "systemctl", "restart", "kiosk"
+    ]
