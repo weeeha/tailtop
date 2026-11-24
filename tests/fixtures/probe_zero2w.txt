@@ -1,0 +1,10 @@
+hostname=plantdashboard
+uptime=7358700.55
+loadavg=0.02 0.01 0.00
+cores=4
+temp_milli=47236
+mem_total_kb=425984
+mem_avail_kb=209920
+disk_pct=46
+throttled=0x0
+model=Raspberry Pi Zero 2 W Rev 1.0
