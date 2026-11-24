@@ -220,3 +220,18 @@ def test_fix_command_exact() -> None:
     assert fix_command("tailscale", b, None, "restart") == [
         "tailscale", "ssh", "-t", "fastclock", "sudo", "systemctl", "restart", "kiosk"
     ]
+
+
+async def test_status_flip_reaches_table_without_probe() -> None:
+    app = make_app()
+    async with app.run_test() as pilot:
+        await load(app, pilot)
+        await pilot.press("4")
+        await pilot.pause()
+        st = await app.client.status()
+        for p in st.peers:
+            if p.host_name == "plant-monitor":
+                p.online = False
+        app._on_status(st)
+        await pilot.pause()
+        assert app.query_one(FleetTable).row_text("plant-monitor")[1] == "down"

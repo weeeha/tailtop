@@ -256,3 +256,53 @@ def test_fast_cadence_only_inside_reboot_window() -> None:
     assert poller.next_wait() == 15.0
     poller.boards["plant"].rebooting_since = NOW - timedelta(seconds=400)
     assert poller.next_wait() == 30.0
+
+
+# ---- final review fixes ------------------------------------------------------
+
+
+async def test_apply_status_marks_offline_without_probing() -> None:
+    r = Recorder()
+    poller, updates, box = make_poller(r, status(peer("plant")))
+    await poller.cycle()
+    calls = len(r.calls)
+    box["status"] = status(peer("plant", online=False, days_ago=0.01))
+    poller.apply_status()
+    assert len(r.calls) == calls
+    assert poller.boards["plant"].health is None
+    assert verdict(updates[-1][0], now=NOW) is Verdict.DOWN
+
+
+async def test_apply_status_wakes_when_board_returns() -> None:
+    poller, _, box = make_poller(Recorder(), status(peer("plant", online=False, days_ago=1)))
+    await poller.cycle()
+    box["status"] = status(peer("plant"))
+    poller._wake.clear()
+    poller.apply_status()
+    assert poller._wake.is_set()
+    assert verdict(poller.boards["plant"], now=NOW) is Verdict.PENDING
+
+
+async def test_restart_while_stopping_leaves_a_running_task() -> None:
+    async def hang(host, user, service):
+        await asyncio.Event().wait()
+
+    poller, _, _ = make_poller(hang, status(peer("plant")))
+    poller.start()
+    await asyncio.sleep(0.02)
+    stopping = asyncio.create_task(poller.stop())
+    await asyncio.sleep(0)
+    poller.start()
+    await stopping
+    assert poller._task is not None and not poller._task.done()
+    await poller.stop()
+
+
+async def test_runner_gets_magicdns_name() -> None:
+    r = Recorder()
+    p = Peer.from_json({"ID": "1", "HostName": "raspberrypi", "OS": "linux", "Online": True,
+                        "DNSName": "raspberrypi-1.tail.ts.net."})
+    poller, _, _ = make_poller(r, status(p))
+    await poller.cycle()
+    assert r.calls[0][0] == "raspberrypi-1"
+    assert "raspberrypi-1" in poller.boards

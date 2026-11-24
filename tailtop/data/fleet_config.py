@@ -40,6 +40,9 @@ class FleetConfig:
     def user_for(self, name: str) -> str | None:
         return self.board(name).user or self.user
 
+    def user_for_board(self, board: BoardConfig) -> str | None:
+        return board.user or self.user
+
 
 def _safe_name(value: object, where: str, errors: list[str]) -> str | None:
     if value is None:

@@ -8,6 +8,7 @@ from rich.text import Text
 from textual.widgets import DataTable
 
 from tailtop.data.fleet import Board, Verdict, since, verdict
+from tailtop.data.fleet_poller import USER_HINT
 
 DASH = "–"
 
@@ -42,9 +43,12 @@ def row_cells(board: Board, now: datetime) -> list[str]:
     def num(value, fmt: str) -> str:
         return DASH if value is None else fmt.format(value)
 
+    state = v.value
+    if v is Verdict.UNREACHABLE and board.health and board.health.error == USER_HINT:
+        state = "unreachable · set user"
     return [
         board.name,
-        v.value,
+        state,
         fmt_since(since(board, now=now)),
         num(h.temp_c if h else None, "{:.0f}°"),
         num(h.load1 if h else None, "{:.2f}"),

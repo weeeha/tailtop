@@ -151,8 +151,8 @@ class TailtopApp(App):
         # base screen are queryable (the splash hides them otherwise).
         self._dismiss_splash()
         self.status = status  # triggers watch_status
-        if self.active_mode == "fleet" and not self.fleet.boards:
-            self.fleet.probe_now()  # first status after entering Fleet: probe at once
+        if self.active_mode == "fleet":
+            self.fleet.apply_status()  # flips show at the 5 s status cadence, not 30 s
 
     def _dismiss_splash(self) -> None:
         splash = self._splash
@@ -327,7 +327,7 @@ class TailtopApp(App):
             if board is None:
                 self.notify("No board selected", severity="warning")
                 return
-            user = self.fleet_config.user_for(board.name)
+            user = self.fleet_config.user_for_board(board.config)
             target = f"{user}@{board.name}" if user else board.name
         else:
             peer = self.selected_peer()
@@ -370,7 +370,8 @@ class TailtopApp(App):
         if kind == "restart" and not board.config.service:
             self.notify(f"{board.name}: no service set in fleet.toml", severity="warning")
             return
-        argv = fix_command(self._binary(), board, self.fleet_config.user_for(board.name), kind)
+        user = self.fleet_config.user_for_board(board.config)
+        argv = fix_command(self._binary(), board, user, kind)
         question = (
             f"Run on {board.name}?\n\n{' '.join(argv)}\n\n"
             f"You'll type the sudo password on {board.name}."

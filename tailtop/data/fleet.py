@@ -7,7 +7,7 @@ is one read-only ``sh`` script run over ``tailscale ssh``; it prints
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Literal
@@ -172,12 +172,13 @@ def warnings(board: Board) -> list[str]:
 
 
 def verdict(board: Board, *, now: datetime) -> Verdict:
-    if not board.peer.online:
-        return Verdict.DOWN
     h = board.health
     rebooting = board.rebooting_since is not None and now - board.rebooting_since < REBOOT_WINDOW
-    if rebooting and (h is None or h.error):
+    # Checked before DOWN: Tailscale marks a rebooting board offline within seconds.
+    if rebooting and (not board.peer.online or h is None or h.error):
         return Verdict.REBOOTING
+    if not board.peer.online:
+        return Verdict.DOWN
     if h is None:
         return Verdict.PENDING
     if h.error:
@@ -206,15 +207,26 @@ def rank_boards(boards: list[Board], *, now: datetime) -> list[Board]:
     return sorted(boards, key=key)
 
 
+def board_name(peer: Peer) -> str:
+    """The MagicDNS label: unique per tailnet and what `tailscale ssh` resolves."""
+    return peer.dns_name.split(".", 1)[0] or peer.host_name
+
+
 def select_boards(status: Status, config: FleetConfig) -> list[tuple[Peer, BoardConfig]]:
-    """Linux peers (not self) that the config does not ignore or exclude."""
+    """Linux peers (not self) that the config does not ignore or exclude.
+
+    The returned ``BoardConfig.name`` is the board's MagicDNS label; a config
+    table keyed by the device's HostName still matches as a fallback.
+    """
     out: list[tuple[Peer, BoardConfig]] = []
     for peer in status.peers:
         if peer.is_self or peer.os.lower() != "linux":
             continue
-        if config.only_listed and peer.host_name not in config.boards:
+        name = board_name(peer)
+        cfg = config.boards.get(name) or config.boards.get(peer.host_name)
+        if config.only_listed and cfg is None:
             continue
-        cfg = config.board(peer.host_name)
+        cfg = replace(cfg, name=name) if cfg else BoardConfig(name)
         if cfg.ignore:
             continue
         out.append((peer, cfg))

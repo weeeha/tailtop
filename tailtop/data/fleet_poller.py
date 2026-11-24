@@ -18,6 +18,7 @@ from tailtop.data.fleet import (
     REBOOT_WINDOW,
     Board,
     BoardHealth,
+    board_name,
     parse_probe,
     rank_boards,
     select_boards,
@@ -138,13 +139,14 @@ class FleetPoller:
             self._task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:
-        if self._task:
-            self._task.cancel()
+        # Detach first, so a start() while this one is still cancelling makes a fresh task.
+        task, self._task = self._task, None
+        if task:
+            task.cancel()
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
-            self._task = None
 
     def probe_now(self, name: str | None = None) -> None:
         """Run a cycle now. A cycle probes every online board, ``name`` included."""
@@ -158,26 +160,55 @@ class FleetPoller:
 
     # ---- one pass ----------------------------------------------------------
 
-    async def cycle(self) -> None:
-        status = self.get_status()
-        if status is None:
-            return
-        now = self.clock()
+    def _sync(self, status: Status) -> bool:
+        """Rebuild boards from ``status`` without probing. True if any came online."""
+        came_online = False
         boards: dict[str, Board] = {}
         for peer, cfg in select_boards(status, self.config):
-            b = self.boards.get(peer.host_name) or Board(peer.host_name, peer, cfg)
+            old = self.boards.get(cfg.name)
+            b = old or Board(cfg.name, peer, cfg)
+            if peer.online and (old is None or not old.peer.online):
+                came_online = True
+                b.health = None
             b.peer, b.config = peer, cfg
             if not peer.online:
                 b.health = None
             boards[b.name] = b
         self.boards = boards
+        return came_online
+
+    def _publish(self, now: datetime) -> None:
+        for b in self.boards.values():
+            v = verdict(b, now=now)
+            if self._verdicts.get(b.name) != v:
+                self._verdicts[b.name] = v
+                b.state_since = now
+        self.on_update(rank_boards(list(self.boards.values()), now=now))
+
+    def apply_status(self) -> None:
+        """Show online/offline flips from a fresh status at once; probe boards that returned."""
+        status = self.get_status()
+        if status is None:
+            return
+        if self._sync(status):
+            self._wake.set()
+        self._publish(self.clock())
+
+    async def cycle(self) -> None:
+        status = self.get_status()
+        if status is None:
+            return
+        now = self.clock()
+        self._sync(status)
+        boards = self.boards
 
         sem = asyncio.Semaphore(self.concurrency)
 
         async def probe(b: Board) -> None:
             async with sem:
                 try:
-                    text = await self.runner(b.name, self.config.user_for(b.name), b.config.service)
+                    user = self.config.user_for_board(b.config)
+                    text = await self.runner(b.name, user, b.config.service)
                     b.health = parse_probe(text, now=now)
                 except ProbeError as exc:
                     b.health = _failed(exc.message, now)
@@ -190,13 +221,7 @@ class FleetPoller:
                 self.history.record(b.name, b.health.temp_c, b.health.load1)
 
         await asyncio.gather(*(probe(b) for b in boards.values() if b.peer.online))
-
-        for b in boards.values():
-            v = verdict(b, now=now)
-            if self._verdicts.get(b.name) != v:
-                self._verdicts[b.name] = v
-                b.state_since = now
-        self.on_update(rank_boards(list(boards.values()), now=now))
+        self._publish(now)
 
     def next_wait(self) -> float:
         """Seconds to the next cycle: faster while a board is inside its reboot window."""

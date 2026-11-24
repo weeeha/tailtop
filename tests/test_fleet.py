@@ -171,3 +171,40 @@ def test_select_boards() -> None:
     only = FleetConfig(only_listed=True, boards={"plant": BoardConfig("plant", service="x")})
     assert names(only) == ["plant"]
     assert select_boards(st, only)[0][1].service == "x"
+
+
+# ---- final review fixes ------------------------------------------------------
+
+
+def test_offline_inside_reboot_window_is_rebooting() -> None:
+    b = make_board(online=False, rebooting_since=NOW - timedelta(seconds=30))
+    assert verdict(b, now=NOW) is Verdict.REBOOTING
+    old = make_board(online=False, rebooting_since=NOW - timedelta(seconds=400))
+    assert verdict(old, now=NOW) is Verdict.DOWN
+
+
+def test_board_name_is_magicdns_label() -> None:
+    from tailtop.data.fleet import board_name
+
+    p = Peer.from_json({"ID": "1", "HostName": "raspberrypi", "DNSName": "raspberrypi-1.tail.ts.net."})
+    assert board_name(p) == "raspberrypi-1"
+    assert board_name(Peer.from_json({"ID": "2", "HostName": "plain"})) == "plain"
+
+
+def test_duplicate_hostnames_stay_separate() -> None:
+    a = Peer.from_json({"ID": "1", "HostName": "raspberrypi", "OS": "linux",
+                        "DNSName": "raspberrypi.tail.ts.net."})
+    b = Peer.from_json({"ID": "2", "HostName": "raspberrypi", "OS": "linux",
+                        "DNSName": "raspberrypi-1.tail.ts.net."})
+    cfg = FleetConfig(boards={"raspberrypi-1": BoardConfig("raspberrypi-1", service="kiosk")})
+    picked = select_boards(_status(a, b), cfg)
+    assert [c.name for _, c in picked] == ["raspberrypi", "raspberrypi-1"]
+    assert picked[1][1].service == "kiosk"
+
+
+def test_row_shows_user_hint() -> None:
+    from tailtop.data.fleet_poller import USER_HINT
+    from tailtop.widgets.fleet_table import row_cells
+
+    b = make_board(error=USER_HINT)
+    assert row_cells(b, NOW)[1] == "unreachable · set user"
