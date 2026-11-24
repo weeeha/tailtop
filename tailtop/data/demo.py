@@ -55,6 +55,7 @@ class _PeerSpec:
     tags: list[str] = field(default_factory=list)
     last_handshake_ago_s: float | None = 6.0
     key_expiry_days: float = 47.0
+    last_seen_ago_s: float | None = None  # set for offline peers
 
     # Mutable counters maintained across status() ticks.
     rx: int = 0
@@ -279,6 +280,11 @@ def _spec_to_peer(spec: _PeerSpec, *, is_self: bool = False) -> Peer:
         key_expiry=now + timedelta(days=spec.key_expiry_days),
         tags=list(spec.tags),
         is_self=is_self,
+        last_seen=(
+            None
+            if spec.last_seen_ago_s is None
+            else now - timedelta(seconds=spec.last_seen_ago_s)
+        ),
     )
 
 
