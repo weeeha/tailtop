@@ -217,3 +217,21 @@ async def test_unexpected_runner_error_becomes_unreachable() -> None:
     await poller.cycle()
     assert poller.boards["plant"].health.error == "pipe broke"
     assert len(updates) == 1
+
+
+async def test_demo_fleet_covers_every_state() -> None:
+    from tailtop.data.demo import DemoClient, demo_fleet_config, demo_probe_runner
+
+    st = await DemoClient().status()
+    updates: list[list[Board]] = []
+    poller = FleetPoller(demo_probe_runner(), lambda: st, demo_fleet_config(), updates.append)
+    await poller.cycle()
+    now = datetime.now(UTC)
+    names = {b.name for b in updates[-1]}
+    assert names == {
+        "clock-hall", "clock-desk", "clock-round", "clock-square",
+        "eink-bed", "eink-kitchen", "plant-monitor", "tv-board",
+    }
+    verdicts = {verdict(b, now=now) for b in updates[-1]}
+    assert {Verdict.DOWN, Verdict.UNREACHABLE, Verdict.USELESS, Verdict.WARN, Verdict.OK} <= verdicts
+    assert updates[-1][0].name == "eink-bed"
