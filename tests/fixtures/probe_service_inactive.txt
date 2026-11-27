@@ -1,0 +1,11 @@
+hostname=fastclock
+uptime=86400.12
+loadavg=0.40 0.30 0.20
+cores=4
+temp_milli=52000
+mem_total_kb=3900000
+mem_avail_kb=2000000
+disk_pct=46
+throttled=0x0
+model=Raspberry Pi 4 Model B Rev 1.5
+service=inactive

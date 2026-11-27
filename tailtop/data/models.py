@@ -56,6 +56,7 @@ class Peer:
     key_expiry: datetime | None
     tags: list[str] = field(default_factory=list)
     is_self: bool = False
+    last_seen: datetime | None = None  # when the control plane last saw it online
 
     # ---- derived, UI-facing properties -------------------------------------
 
@@ -129,6 +130,7 @@ class Peer:
             key_expiry=_parse_time(d.get("KeyExpiry")),
             tags=list(d.get("Tags") or []),
             is_self=is_self,
+            last_seen=_parse_time(d.get("LastSeen")),
         )
 
 

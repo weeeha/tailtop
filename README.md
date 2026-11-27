@@ -18,13 +18,14 @@ the Tailscale side, needs no root, and runs entirely in your terminal.
 
 ## Modes
 
-`Tab` cycles between three modes, each tuned to one intent:
+`Tab` cycles between four modes, each tuned to one intent; `1` to `4` jump straight to one:
 
 | Mode | Intent | View | Theme |
 |------|--------|------|-------|
 | **Comfort** | manage | List (GUI parity) | Studio |
 | **Cockpit** | operate | Live cards + sparklines | Mission Control |
 | **Observatory** | observe | Network topology | Brutalist |
+| **Fleet** | check the boards | Linux boards, worst first | Fleet |
 
 | Comfort | Observatory |
 |---|---|
@@ -36,7 +37,8 @@ Screenshots are from `tailtop --demo`, which runs a synthetic tailnet.
 
 | Key | Action |
 |-----|--------|
-| `Tab` | cycle modes (Comfort → Cockpit → Observatory) |
+| `Tab` | cycle modes (Comfort → Cockpit → Observatory → Fleet) |
+| `1` to `4` | jump to a mode |
 | `j` / `k` / `↑` / `↓` | navigate devices |
 | `⌘P` / `Ctrl+P` | command palette (all verbs for the selected device) |
 | `p` | ping · `c` copy IP · `w` whois · `n` netcheck |
@@ -46,10 +48,45 @@ Screenshots are from `tailtop --demo`, which runs a synthetic tailnet.
 Mutating actions (exit node, funnel, send) confirm first. SSH suspends the
 TUI, hands the terminal to `tailscale ssh`, and resumes on exit.
 
+## Fleet mode
+
+Fleet answers "is any board broken, and since when" for the Linux devices on
+the tailnet (Raspberry Pis driving clocks and dashboards, say). Boards are
+ranked worst first: **down** (offline in Tailscale, with days since last
+seen), **unreachable** (online but the probe failed), **useless** (online, but
+its app service is not running), **warn** (70 °C or hotter, disk 85 % or more,
+memory 90 % or more, load at twice the core count, or under-voltage or
+throttling right now), then **ok**.
+
+While the tab is open, tailtop probes each online board every 30 s over
+`tailscale ssh` with one read-only shell script: uptime, load, temperature,
+memory, root disk, `vcgencmd get_throttled` and `systemctl is-active` for the
+board's service. Nothing is installed on the boards and nothing needs sudo.
+History (temperature and load sparklines) lasts as long as tailtop is open.
+
+| Key | Action |
+|-----|--------|
+| `R` | restart the board's service |
+| `B` | reboot the board |
+| `s` | SSH to the board as its configured user |
+| `r` | probe now |
+
+`R` and `B` show the board and the exact command first. On yes, tailtop hands
+the terminal to `tailscale ssh -t … sudo systemctl …` so you type the sudo
+password on the board; tailtop never sees or stores it. After a reboot the
+board shows **rebooting** for up to 3 minutes.
+
+Configuration is optional. Copy [`fleet.example.toml`](fleet.example.toml) to
+`~/.config/tailtop/fleet.toml` to set the SSH user, the service that means a
+board is doing its job, labels, boards to ignore, or `only_listed = true`.
+Without a user, probes run as Tailscale's default SSH user; a board that
+refuses it shows "set user in fleet.toml".
+
 ## Requirements
 
 - The `tailscale` CLI on your `PATH` (the daemon must be running). Not needed with `--demo`.
 - Python ≥ 3.13.
+- Fleet mode: Tailscale SSH enabled on the boards for your user.
 
 ## Run
 

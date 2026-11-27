@@ -90,3 +90,15 @@ def test_sorted_peers_online_first(status: Status) -> None:
     if False in types:
         first_offline = types.index(False)
         assert all(t is False for t in types[first_offline:])
+
+
+def test_last_seen_parsed() -> None:
+    from datetime import UTC, datetime
+
+    p = Peer.from_json({"ID": "1", "HostName": "slowclock", "LastSeen": "2026-06-05T21:52:12.1Z"})
+    assert p.last_seen == datetime(2026, 6, 5, 21, 52, 12, 100000, tzinfo=UTC)
+
+
+def test_last_seen_zero_time_is_none() -> None:
+    p = Peer.from_json({"ID": "1", "LastSeen": "0001-01-01T00:00:00Z"})
+    assert p.last_seen is None

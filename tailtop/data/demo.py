@@ -16,6 +16,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
+from tailtop.data.fleet_config import BoardConfig, FleetConfig
+from tailtop.data.fleet_poller import ProbeError, ProbeRunner
 from tailtop.data.models import Peer, Status
 
 
@@ -55,6 +57,7 @@ class _PeerSpec:
     tags: list[str] = field(default_factory=list)
     last_handshake_ago_s: float | None = 6.0
     key_expiry_days: float = 47.0
+    last_seen_ago_s: float | None = None  # set for offline peers
 
     # Mutable counters maintained across status() ticks.
     rx: int = 0
@@ -245,6 +248,23 @@ _PEERS: list[_PeerSpec] = [
         tags=["tag:legacy"],
         last_handshake_ago_s=60 * 60 * 26,  # offline > a day
     ),
+    # Home display boards for Fleet mode (see demo_fleet_config below).
+    *[
+        _PeerSpec(f"p-{name}", name, "linux", f"100.64.80.{i}", _LIGHT, tags=["tag:board"])
+        for i, name in enumerate(
+            ["clock-hall", "clock-desk", "clock-square", "eink-kitchen", "plant-monitor",
+             "tv-board"],
+            start=1,
+        )
+    ],
+    _PeerSpec(
+        "p-clock-round", "clock-round", "linux", "100.64.80.7", _IDLE,
+        online=False, direct=False, last_handshake_ago_s=None, last_seen_ago_s=41 * 86400,
+    ),
+    _PeerSpec(
+        "p-eink-bed", "eink-bed", "linux", "100.64.80.8", _IDLE,
+        online=False, direct=False, last_handshake_ago_s=None, last_seen_ago_s=117 * 86400,
+    ),
 ]
 
 
@@ -279,6 +299,11 @@ def _spec_to_peer(spec: _PeerSpec, *, is_self: bool = False) -> Peer:
         key_expiry=now + timedelta(days=spec.key_expiry_days),
         tags=list(spec.tags),
         is_self=is_self,
+        last_seen=(
+            None
+            if spec.last_seen_ago_s is None
+            else now - timedelta(seconds=spec.last_seen_ago_s)
+        ),
     )
 
 
@@ -381,3 +406,65 @@ class DemoClient:
             tx *= 1 + self._rng.uniform(-prof.jitter, prof.jitter)
             spec.rx += int(max(0, rx) * dt)
             spec.tx += int(max(0, tx) * dt)
+
+
+# ---- Fleet mode demo -------------------------------------------------------
+
+_DEMO_PROBES: dict[str, dict[str, str]] = {
+    "clock-hall": {"temp": "51", "load": "0.31 0.28 0.25", "disk": "38", "thr": "0x0",
+                   "model": "Raspberry Pi 4 Model B Rev 1.5"},
+    "clock-desk": {"temp": "55", "load": "0.62 0.50 0.44", "disk": "41", "thr": "0x0",
+                   "model": "Raspberry Pi 5 Model B Rev 1.0", "service": "active"},
+    "clock-square": {"temp": "74", "load": "1.90 1.70 1.60", "disk": "52", "thr": "0x50005",
+                     "model": "Raspberry Pi 4 Model B Rev 1.4", "service": "active"},
+    "eink-kitchen": {"temp": "44", "load": "0.05 0.04 0.01", "disk": "61", "thr": "0x0",
+                     "model": "Raspberry Pi Zero 2 W Rev 1.0", "service": "inactive"},
+    "plant-monitor": {"temp": "47", "load": "0.02 0.04 0.00", "disk": "46", "thr": "0x0",
+                      "model": "Raspberry Pi Zero 2 W Rev 1.0", "service": "active"},
+}
+
+
+def demo_fleet_config() -> FleetConfig:
+    """Only the demo boards, with services on six of them."""
+    services = {
+        "clock-desk": "superclock", "clock-round": "superclock", "clock-square": "superclock",
+        "eink-bed": "inkypi", "eink-kitchen": "inkypi", "plant-monitor": "plantd",
+    }
+    names = ["clock-hall", "clock-desk", "clock-round", "clock-square",
+             "eink-bed", "eink-kitchen", "plant-monitor", "tv-board"]
+    return FleetConfig(
+        user="demo",
+        interval=5.0,
+        only_listed=True,
+        boards={n: BoardConfig(n, service=services.get(n)) for n in names},
+    )
+
+
+def demo_probe_runner(seed: int = 7) -> ProbeRunner:
+    """Canned probe output; temperatures drift a little each call."""
+    rng = random.Random(seed)
+
+    async def run(host: str, user: str | None, service: str | None) -> str:
+        if host == "tv-board":
+            raise ProbeError("timeout after 10s")
+        p = _DEMO_PROBES.get(host)
+        if p is None:
+            raise ProbeError(f"no route to {host}")
+        temp = float(p["temp"]) + rng.uniform(-1.5, 1.5)
+        lines = [
+            f"hostname={host}",
+            "uptime=7358700",
+            f"loadavg={p['load']}",
+            "cores=4",
+            f"temp_milli={int(temp * 1000)}",
+            "mem_total_kb=425984",
+            "mem_avail_kb=209920",
+            f"disk_pct={p['disk']}",
+            f"throttled={p['thr']}",
+            f"model={p['model']}",
+        ]
+        if service:
+            lines.append(f"service={p.get('service', 'active')}")
+        return "\n".join(lines) + "\n"
+
+    return run

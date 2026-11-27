@@ -40,6 +40,8 @@ async def test_tab_cycles_modes(status: Status) -> None:
         await pilot.press("tab")
         assert app.active_mode == "observatory"
         await pilot.press("tab")
+        assert app.active_mode == "fleet"
+        await pilot.press("tab")
         assert app.active_mode == "comfort"
 
 
