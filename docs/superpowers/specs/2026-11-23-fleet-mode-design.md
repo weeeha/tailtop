@@ -30,10 +30,10 @@ Eight Linux boards drive displays around the apartment (four SuperClock round cl
 
 ## 3. Constraints (measured 2026-11-23)
 
-- `tailscale ssh nickv2026@plantdashboard <cmd>` works with no password. Users `nickv` and `pi` are refused (`failed to look up local user`, `tailnet policy does not permit`).
-- `sudo -n true` fails for `nickv2026` on plantdashboard: sudo needs a password. So fixes cannot run non-interactively.
-- plantdashboard is a Raspberry Pi Zero 2 W, 416 MB RAM, 4 cores. One SSH round trip printed `hostname`, `uptime`, thermal zone (`47236` = 47.2 °C), `vcgencmd get_throttled` (`throttled=0x0`) and `df -h /` without trouble.
-- No running service on plantdashboard has an obvious "kiosk" name (running non-system units: `nfs-blkmap`, `rpcbind`, `tailprobe`). The app service cannot be guessed and must be configured per board.
+- `tailscale ssh boarduser@greenhouse <cmd>` works with no password. Users `nickv` and `pi` are refused (`failed to look up local user`, `tailnet policy does not permit`).
+- `sudo -n true` fails for `boarduser` on greenhouse: sudo needs a password. So fixes cannot run non-interactively.
+- greenhouse is a Raspberry Pi Zero 2 W, 416 MB RAM, 4 cores. One SSH round trip printed `hostname`, `uptime`, thermal zone (`47236` = 47.2 °C), `vcgencmd get_throttled` (`throttled=0x0`) and `df -h /` without trouble.
+- No running service on greenhouse has an obvious "kiosk" name (running non-system units: `nfs-blkmap`, `rpcbind`, `tailprobe`). The app service cannot be guessed and must be configured per board.
 - `tailscale status --json` gives online state, OS and `LastSeen` for every peer. `Peer` (`tailtop/data/models.py`) parses online state and OS but **not** `LastSeen` (only `LastHandshake`), so this work adds a `last_seen` field. `LastSeen`, not `LastHandshake`, is the basis for "down 168d": the handshake can be stale on a peer that is online.
 - On 2026-11-23 the tailnet's Linux peers were exactly the eight boards; no Linux servers, containers or VMs.
 - tailtop: Python ≥3.13, Textual 1.x, plotext. One `Poller` runs `tailscale status` and hands a `Status` to the active `ModeView` via `update_data(status, rates)`; each mode sets `cadence`. Modes are swapped with a `ContentSwitcher`; `Tab` cycles `MODE_ORDER`. Mutating verbs go through `_run_mutation` (confirm screen); `action_ssh` suspends the TUI and runs `tailscale ssh`.
@@ -57,10 +57,10 @@ Nick picked **A**. The probe and parsing code lives in its own module (`tailtop/
 
 ```toml
 [defaults]
-user = "nickv2026"      # SSH user for every board unless overridden
+user = "boarduser"      # SSH user for every board unless overridden
 interval = 30           # seconds between probes while Fleet is open
 
-[boards.plantdashboard]
+[boards.greenhouse]
 service = "tailprobe"   # systemd unit that means "this board is doing its job"
 label = "plant monitor"
 
@@ -121,13 +121,13 @@ Netwatch-style dense grid, Fleet's own theme file `themes/fleet.tcss`:
 │ 8           ││ 7  slowest  ││ 0           ││ 47°C plant  ││ 46% plant    │
 │ 1 up        ││ 168d        ││             ││             ││              │
 └─────────────┘└─────────────┘└─────────────┘└─────────────┘└──────────────┘
-┌ fleet ─ worst first ───────────────────────────────────┐┌ plantdashboard ──────┐
+┌ fleet ─ worst first ───────────────────────────────────┐┌ greenhouse ──────┐
 │ board           state    since  temp  load  mem  disk ││ Pi Zero 2 W · 416 MB │
 │ slowclock       down     168d    –     –     –    –   ││ up 85d · tailprobe ● │
 │ dashboard3eink  down     117d    –     –     –    –   ││ temp ▁▂▂▃▂▂▂ 47°C    │
 │ smallclock      down      85d    –     –     –    –   ││ load ▁▁▁▁▂▁▁ 0.02    │
 │ …                                                     ││ throttle: none       │
-│ plantdashboard  ok        85d   47°  0.02  50%  46%   ││ last probe 12s ago   │
+│ greenhouse  ok        85d   47°  0.02  50%  46%   ││ last probe 12s ago   │
 └───────────────────────────────────────────────────────┘└──────────────────────┘
  R restart service  B reboot  s ssh  r probe now  tab mode  ? help  q quit
 ```
@@ -174,7 +174,7 @@ Netwatch-style dense grid, Fleet's own theme file `themes/fleet.tcss`:
 ## 7. My calls (Nick can override)
 
 - Fixes hand over the terminal for the sudo password instead of storing anything.
-- Config file at `~/.config/tailtop/fleet.toml`, optional, with `nickv2026` as an example user (not hard-coded).
+- Config file at `~/.config/tailtop/fleet.toml`, optional, with `boarduser` as an example user (not hard-coded).
 - 30 s probe interval, 10 s timeout, 4 at once; thresholds in 5.4.
 - Number keys 1 to 4 for modes.
 - Linux peers are boards by default; Windows and macOS machines are never listed. `only_listed` is there for other tailnets.

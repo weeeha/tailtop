@@ -14,17 +14,17 @@ def test_missing_file_gives_defaults(tmp_path) -> None:
 def test_overrides_and_user_fallback(tmp_path) -> None:
     p = tmp_path / "f.toml"
     p.write_text(
-        '[defaults]\nuser="nickv2026"\ninterval=60\n'
-        '[boards.plantdashboard]\nservice="tailprobe"\nlabel="plant monitor"\n'
+        '[defaults]\nuser="boarduser"\ninterval=60\n'
+        '[boards.greenhouse]\nservice="tailprobe"\nlabel="plant monitor"\n'
         '[boards.fastclock]\nuser="pi2"\n'
         "[boards.srv]\nignore=true\n"
     )
     cfg, errs = load_fleet_config(p)
     assert errs == []
     assert cfg.interval == 60
-    assert cfg.board("plantdashboard").service == "tailprobe"
-    assert cfg.board("plantdashboard").label == "plant monitor"
-    assert cfg.user_for("plantdashboard") == "nickv2026"
+    assert cfg.board("greenhouse").service == "tailprobe"
+    assert cfg.board("greenhouse").label == "plant monitor"
+    assert cfg.user_for("greenhouse") == "boarduser"
     assert cfg.user_for("fastclock") == "pi2"
     assert cfg.board("srv").ignore is True
     assert cfg.board("unlisted") == BoardConfig("unlisted")

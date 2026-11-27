@@ -214,8 +214,8 @@ def test_fix_command_exact() -> None:
 
     b = Board("fastclock", Peer.from_json({"ID": "1", "HostName": "fastclock"}),
               BoardConfig("fastclock", service="kiosk"))
-    assert fix_command("tailscale", b, "nickv2026", "reboot") == [
-        "tailscale", "ssh", "-t", "nickv2026@fastclock", "sudo", "systemctl", "reboot"
+    assert fix_command("tailscale", b, "boarduser", "reboot") == [
+        "tailscale", "ssh", "-t", "boarduser@fastclock", "sudo", "systemctl", "reboot"
     ]
     assert fix_command("tailscale", b, None, "restart") == [
         "tailscale", "ssh", "-t", "fastclock", "sudo", "systemctl", "restart", "kiosk"

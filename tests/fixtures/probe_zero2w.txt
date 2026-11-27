@@ -1,4 +1,4 @@
-hostname=plantdashboard
+hostname=greenhouse
 uptime=7358700.55
 loadavg=0.02 0.01 0.00
 cores=4

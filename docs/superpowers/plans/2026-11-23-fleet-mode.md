@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Nothing is installed on the boards; probes are read-only and never use sudo.
-- No password, key or user name is stored or hard-coded in code; the only user example lives in `fleet.example.toml` (`nickv2026`).
+- No password, key or user name is stored or hard-coded in code; the only user example lives in `fleet.example.toml` (`boarduser`).
 - Probe: 10 s timeout per board, at most 4 at once, interval 30 s default, offline boards never probed.
 - Status poller cadence while Fleet is active: 5 s.
 - History ring buffer: 60 samples per board (temperature and load1).
@@ -105,14 +105,14 @@ def test_missing_file_gives_defaults(tmp_path):
 
 def test_overrides_and_user_fallback(tmp_path):
     p = tmp_path / "f.toml"
-    p.write_text('[defaults]\nuser="nickv2026"\ninterval=60\n'
-                 '[boards.plantdashboard]\nservice="tailprobe"\nlabel="plant monitor"\n'
+    p.write_text('[defaults]\nuser="boarduser"\ninterval=60\n'
+                 '[boards.greenhouse]\nservice="tailprobe"\nlabel="plant monitor"\n'
                  '[boards.fastclock]\nuser="pi2"\n[boards.srv]\nignore=true\n')
     cfg, errs = load_fleet_config(p)
     assert errs == []
     assert cfg.interval == 60
-    assert cfg.board("plantdashboard").service == "tailprobe"
-    assert cfg.user_for("plantdashboard") == "nickv2026"
+    assert cfg.board("greenhouse").service == "tailprobe"
+    assert cfg.user_for("greenhouse") == "boarduser"
     assert cfg.user_for("fastclock") == "pi2"
     assert cfg.board("srv").ignore is True
     assert cfg.board("unlisted") == BoardConfig("unlisted")
@@ -135,7 +135,7 @@ def test_interval_clamped(tmp_path):
 ```
 
 - [ ] **Step 2: Run** `uv run --extra dev pytest tests/test_fleet_config.py -q`. Expected: FAIL (module missing).
-- [ ] **Step 3: Implement** `tailtop/data/fleet_config.py`. Write `fleet.example.toml` at the repo root with the spec 5.1 example, every line commented as an example, `user = "nickv2026"` shown as an example only, plus `only_listed`.
+- [ ] **Step 3: Implement** `tailtop/data/fleet_config.py`. Write `fleet.example.toml` at the repo root with the spec 5.1 example, every line commented as an example, `user = "boarduser"` shown as an example only, plus `only_listed`.
 - [ ] **Step 4: Run** the file's tests. Expected: 5 passed.
 - [ ] **Step 5: Commit** `git commit -m "feat(fleet): config loader with name validation"`
 
@@ -162,7 +162,7 @@ def test_interval_clamped(tmp_path):
   - `def rank_boards(boards: list[Board], *, now: datetime) -> list[Board]`: sort by `(verdict.rank, -since_seconds, name)`.
   - `def select_boards(status: Status, config: FleetConfig) -> list[tuple[Peer, BoardConfig]]`: peers with `os == "linux"`, not self, not `ignore`; when `only_listed`, only names in `config.boards`.
 
-- [ ] **Step 1: Write the fixture files.** `probe_pi4.txt` from a Pi 4 (temp_milli 52000, loadavg 0.40 0.30 0.20, cores 4, mem 3900000/2000000, disk 46, throttled 0x0, model "Raspberry Pi 4 Model B Rev 1.5", service active). `probe_zero2w.txt` from the real plantdashboard numbers (temp_milli 47236, loadavg 0.02 0.01 0.00, cores 4, mem_total_kb 425984 mem_avail_kb 209920, disk 46, throttled 0x0, model "Raspberry Pi Zero 2 W Rev 1.0", uptime 7358700). `probe_no_vcgencmd.txt`: same as Pi 4 without the `throttled` and `model` lines. `probe_service_inactive.txt`: Pi 4 with `service=inactive`.
+- [ ] **Step 1: Write the fixture files.** `probe_pi4.txt` from a Pi 4 (temp_milli 52000, loadavg 0.40 0.30 0.20, cores 4, mem 3900000/2000000, disk 46, throttled 0x0, model "Raspberry Pi 4 Model B Rev 1.5", service active). `probe_zero2w.txt` from the real greenhouse numbers (temp_milli 47236, loadavg 0.02 0.01 0.00, cores 4, mem_total_kb 425984 mem_avail_kb 209920, disk 46, throttled 0x0, model "Raspberry Pi Zero 2 W Rev 1.0", uptime 7358700). `probe_no_vcgencmd.txt`: same as Pi 4 without the `throttled` and `model` lines. `probe_service_inactive.txt`: Pi 4 with `service=inactive`.
 - [ ] **Step 2: Write the failing tests**
 
 ```python
@@ -215,7 +215,7 @@ def test_select_boards(status_fixture):
 
 - [ ] **Step 3: Run** `uv run --extra dev pytest tests/test_fleet.py -q`. Expected: FAIL (module missing).
 - [ ] **Step 4: Implement** `tailtop/data/fleet.py` (no Textual imports). `mem_pct = 100 × (total − avail) / total`.
-- [ ] **Step 5: Run** the file's tests. Expected: all pass. Then a manual check: `tailscale ssh nickv2026@plantdashboard sh -s -- tailprobe < <(python -c "from tailtop.data.fleet import PROBE_SCRIPT; print(PROBE_SCRIPT)")` prints key=value lines that `parse_probe` turns into a `BoardHealth` with no `None` fields except as expected. If plantdashboard is offline, say so in the task report.
+- [ ] **Step 5: Run** the file's tests. Expected: all pass. Then a manual check: `tailscale ssh boarduser@greenhouse sh -s -- tailprobe < <(python -c "from tailtop.data.fleet import PROBE_SCRIPT; print(PROBE_SCRIPT)")` prints key=value lines that `parse_probe` turns into a `BoardHealth` with no `None` fields except as expected. If greenhouse is offline, say so in the task report.
 - [ ] **Step 6: Commit** `git commit -m "feat(fleet): probe script, parser and verdicts"`
 
 ---
@@ -366,7 +366,7 @@ async def test_reboot_yes_marks_rebooting(): press "B", "y"; await app.fleet.cyc
 async def test_ssh_in_fleet_uses_board_user(): press "s"
     ...assert handover_calls[-1] == ["tailscale", "ssh", "demo@plant-monitor"]
 def test_fix_command_exact():
-    assert fix_command("tailscale", board, "nickv2026", "reboot") == ["tailscale", "ssh", "-t", "nickv2026@fastclock", "sudo", "systemctl", "reboot"]
+    assert fix_command("tailscale", board, "boarduser", "reboot") == ["tailscale", "ssh", "-t", "boarduser@fastclock", "sudo", "systemctl", "reboot"]
 ```
 
 Demo service names come from Task 5 (`plant-monitor` → `plantd`, `clock-hall` has none).
@@ -385,6 +385,6 @@ Demo service names come from Task 5 (`plant-monitor` → `plantd`, `clock-hall` 
 - Modify: `tailtop/app.py` `action_help` text to include `1-4 modes · R restart · B reboot`
 
 - [ ] **Step 1: Update** the README and help text. No em dashes or exclamation marks in prose.
-- [ ] **Step 2: Live check** against the real tailnet, read-only: create a scratch config outside the repo (`~/.config/tailtop/fleet.toml` only if it doesn't exist; otherwise leave it alone and use a temp path through `TailtopApp(fleet_config=...)` in a pilot script). Run one `FleetPoller.cycle()` with `ssh_probe_runner()` and print each board's name, verdict and since. Expected: the boards Tailscale shows offline appear as `down` with matching day counts, and plantdashboard as `ok` or `useless` with real numbers. Do not press `R` or `B` against real boards.
+- [ ] **Step 2: Live check** against the real tailnet, read-only: create a scratch config outside the repo (`~/.config/tailtop/fleet.toml` only if it doesn't exist; otherwise leave it alone and use a temp path through `TailtopApp(fleet_config=...)` in a pilot script). Run one `FleetPoller.cycle()` with `ssh_probe_runner()` and print each board's name, verdict and since. Expected: the boards Tailscale shows offline appear as `down` with matching day counts, and greenhouse as `ok` or `useless` with real numbers. Do not press `R` or `B` against real boards.
 - [ ] **Step 3: Run** `uv run --extra dev pytest -q`. Expected: all pass, about 37 + 35 tests.
 - [ ] **Step 4: Commit** `git commit -m "docs(fleet): README section and help text"`

@@ -198,9 +198,9 @@ async def test_ssh_runner_timeout(tmp_path) -> None:
 async def test_ssh_runner_argv_and_partial_success(tmp_path) -> None:
     log = tmp_path / "argv"
     b = fake_binary(tmp_path, f'echo "$@" > {log}\ncat >/dev/null\necho hostname=plant\nexit 1\n')
-    out = await ssh_probe_runner(b)("plant", "nickv2026", "tailprobe")
+    out = await ssh_probe_runner(b)("plant", "boarduser", "tailprobe")
     assert out.strip() == "hostname=plant"
-    assert log.read_text().strip() == "ssh nickv2026@plant sh -s -- tailprobe"
+    assert log.read_text().strip() == "ssh boarduser@plant sh -s -- tailprobe"
 
 
 async def test_ssh_runner_other_error_uses_last_stderr_line(tmp_path) -> None:
